@@ -10,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "BRACKET — Start the game",
     description:
-      "Create, run, and share single elimination, double elimination, round robin, and Swiss tournaments in minutes.",
+      "Create, run, and share elimination, round robin, Swiss, and group-stage tournaments in minutes.",
     icons: {
       icon: "/favicon.svg",
       shortcut: "/favicon.svg",

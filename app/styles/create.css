@@ -1,0 +1,183 @@
+.create-page {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.9fr) minmax(470px, 1.1fr);
+  gap: 6vw;
+  padding: 5vw;
+}
+
+.create-intro > p:not(.eyebrow) {
+  line-height: 1.65;
+  max-width: 550px;
+}
+
+.create-intro h1 {
+  color: var(--blue);
+  font-size: clamp(3rem, 5.2vw, 5.8rem);
+}
+
+.format-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 2rem;
+}
+
+.format-list button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: auto 1fr auto;
+  padding: 1rem 1.2rem;
+  text-align: left;
+}
+
+.format-list button.selected {
+  background-color: var(--blue);
+  background-image: radial-gradient(rgba(242,239,234,0.16) 0.7px, transparent 0.8px);
+  background-size: 4px 4px;
+  border-color: var(--blue);
+  color: white;
+}
+
+.format-list b,
+.format-list small {
+  display: block;
+}
+
+.format-list small {
+  font-size: 0.7rem;
+  margin-top: 0.25rem;
+  opacity: 0.75;
+}
+
+.radio-mark {
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  height: 18px;
+  width: 18px;
+}
+
+.selected .radio-mark {
+  box-shadow: inset 0 0 0 4px var(--blue), inset 0 0 0 8px white;
+}
+
+.format-glyph {
+  font-size: 1.6rem;
+}
+
+.create-form-panel {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: grid;
+  gap: 1.5rem;
+  padding: clamp(1.5rem, 3.5vw, 3rem);
+}
+
+.create-form-panel label > span,
+.expiry-fieldset legend {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-bottom: 0.55rem;
+}
+
+.participant-label {
+  align-items: center;
+  display: flex !important;
+  justify-content: space-between;
+}
+
+.participant-label b {
+  color: var(--blue);
+  font-size: 0.68rem;
+}
+
+.participant-label b.over {
+  color: #8c2d23;
+}
+
+.create-form-panel label > small,
+.toggle-row small {
+  display: block;
+  font-size: 0.7rem;
+  margin: -0.35rem 0 0.55rem;
+  opacity: 0.7;
+}
+
+.create-form-panel input[type="text"],
+.create-form-panel input:not([type]),
+.create-form-panel textarea,
+.wheel-controls textarea {
+  background: rgba(242, 239, 234, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  outline: none;
+  padding: 0.9rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.create-form-panel input:focus,
+.create-form-panel textarea:focus,
+.wheel-controls textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px rgba(7, 37, 176, 0.1);
+}
+
+.toggle-row {
+  align-items: center;
+  border: 1px solid var(--soft-line);
+  display: flex;
+  justify-content: space-between;
+  padding: 0.9rem;
+}
+
+.toggle-row input {
+  accent-color: var(--blue);
+  height: 1.2rem;
+  width: 1.2rem;
+}
+
+.expiry-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.expiry-grid {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.expiry-grid button {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.7rem 0.35rem;
+}
+
+.expiry-grid button.selected {
+  border-color: var(--blue);
+  box-shadow: inset 0 -3px var(--blue);
+}
+
+.expiry-grid b,
+.expiry-grid small {
+  display: block;
+}
+
+.expiry-grid small {
+  font-size: 0.58rem;
+  margin-top: 0.25rem;
+  opacity: 0.68;
+}
+
+.private-note {
+  font-size: 0.7rem;
+  margin: -0.6rem 0 0;
+  text-align: center;
+}
+

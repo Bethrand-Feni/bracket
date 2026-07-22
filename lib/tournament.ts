@@ -1,369 +1,55 @@
-export type TournamentFormat =
-  | "single"
-  | "double"
-  | "round-robin"
-  | "swiss";
+import type {
+  KnockoutStage,
+  PreliminaryStage,
+  TournamentSnapshot,
+  TournamentStageId,
+} from "./tournament/types";
+import { autoAdvance } from "./tournament/advance";
+import { buildDouble, buildSingle, nextPowerOfTwo } from "./tournament/elimination";
+import { matchId } from "./tournament/ids";
+import { refreshQualification } from "./tournament/qualifiers";
+import {
+  createTournamentSnapshot,
+  normalizeTournamentSnapshot,
+  refreshPreliminaryStandings,
+  syncCompatibilityProjection,
+} from "./tournament/snapshot";
 
-export interface Participant {
-  id: string;
-  name: string;
-  seed: number;
-}
+export type * from "./tournament/types";
+export { computeStandings } from "./tournament/standings";
+export { formatLabels, participantName } from "./tournament/selectors";
+export { createTournamentSnapshot, normalizeTournamentSnapshot } from "./tournament/snapshot";
 
-export interface Match {
-  id: string;
-  round: number;
-  roundLabel: string;
-  position: number;
-  bracket: "winners" | "losers" | "round-robin" | "swiss";
-  participantAId: string | null;
-  participantBId: string | null;
-  scoreA: number | null;
-  scoreB: number | null;
-  winnerId: string | null;
-  status: "waiting" | "ready" | "complete";
-  nextMatchId?: string;
-  nextSlot?: "a" | "b";
-  loserNextMatchId?: string;
-  loserNextSlot?: "a" | "b";
-}
 
-export interface Standing {
-  participantId: string;
-  played: number;
-  wins: number;
-  draws: number;
-  losses: number;
-  scoreFor: number;
-  scoreAgainst: number;
-  points: number;
-}
 
-export interface TournamentSnapshot {
-  id: string;
-  slug: string;
-  name: string;
-  format: TournamentFormat;
-  status: "active" | "complete";
-  participants: Participant[];
-  matches: Match[];
-  standings: Standing[];
-  revision: number;
-  expiresAt: number;
-  createdAt: number;
-}
 
-function id(prefix: string, round: number, position: number) {
-  return `${prefix}-${round}-${position}`;
-}
-
-function nextPowerOfTwo(value: number) {
-  return 2 ** Math.ceil(Math.log2(Math.max(2, value)));
-}
-
-function eliminationRoundLabel(round: number, totalRounds: number) {
-  const fromFinal = totalRounds - round;
-  if (fromFinal === 1) return "Final";
-  if (fromFinal === 2) return "Semifinals";
-  if (fromFinal === 3) return "Quarterfinals";
-  return `Round ${round + 1}`;
-}
-
-function buildSingle(participants: Participant[]): Match[] {
-  const size = nextPowerOfTwo(participants.length);
-  const totalRounds = Math.log2(size);
-  const padded = [...participants, ...Array(size - participants.length).fill(null)];
-  const matches: Match[] = [];
-
-  for (let round = 0; round < totalRounds; round += 1) {
-    const count = size / 2 ** (round + 1);
-    for (let position = 0; position < count; position += 1) {
-      const matchId = id("w", round, position);
-      const nextMatchId =
-        round < totalRounds - 1 ? id("w", round + 1, Math.floor(position / 2)) : undefined;
-      const nextSlot = position % 2 === 0 ? "a" : "b";
-      const participantA = round === 0 ? padded[position * 2] : null;
-      const participantB = round === 0 ? padded[position * 2 + 1] : null;
-      matches.push({
-        id: matchId,
-        round,
-        roundLabel: eliminationRoundLabel(round, totalRounds),
-        position,
-        bracket: "winners",
-        participantAId: participantA?.id ?? null,
-        participantBId: participantB?.id ?? null,
-        scoreA: null,
-        scoreB: null,
-        winnerId: null,
-        status:
-          participantA && participantB
-            ? "ready"
-            : participantA || participantB
-              ? "complete"
-              : "waiting",
-        nextMatchId,
-        nextSlot,
-      });
+function stageIsComplete(stage: PreliminaryStage | KnockoutStage) {
+  if (stage.id === "preliminary") {
+    if (stage.format === "swiss") {
+      const generatedRounds = new Set(stage.matches.map((match) => match.round)).size;
+      return (
+        generatedRounds >= (stage.plannedRounds ?? 1) &&
+        stage.matches.every((match) => match.status === "complete")
+      );
     }
-  }
-
-  autoAdvance(matches);
-  return matches;
-}
-
-function buildDouble(participants: Participant[]): Match[] {
-  const winners = buildSingle(participants).map((match) => ({
-    ...match,
-    roundLabel: `Winners · ${match.roundLabel}`,
-  }));
-  const opening = winners.filter((match) => match.round === 0);
-  const losers: Match[] = [];
-  const loserRounds = Math.max(1, Math.ceil(Math.log2(nextPowerOfTwo(participants.length))) - 1);
-
-  for (let round = 0; round <= loserRounds; round += 1) {
-    const count = Math.max(1, Math.floor(opening.length / 2 ** (round + 1)));
-    for (let position = 0; position < count; position += 1) {
-      const matchId = id("l", round, position);
-      losers.push({
-        id: matchId,
-        round: winners.length ? round + 0.5 : round,
-        roundLabel: round === loserRounds ? "Losers · Final" : `Losers · Round ${round + 1}`,
-        position,
-        bracket: "losers",
-        participantAId: null,
-        participantBId: null,
-        scoreA: null,
-        scoreB: null,
-        winnerId: null,
-        status: "waiting",
-        nextMatchId:
-          round < loserRounds ? id("l", round + 1, Math.floor(position / 2)) : undefined,
-        nextSlot: position % 2 === 0 ? "a" : "b",
-      });
-    }
-  }
-
-  opening.forEach((match, index) => {
-    const target = losers[Math.floor(index / 2)];
-    if (target) {
-      match.loserNextMatchId = target.id;
-      match.loserNextSlot = index % 2 === 0 ? "a" : "b";
-    }
-  });
-
-  const winnersFinal = winners.find(
-    (match) => !match.nextMatchId && match.bracket === "winners",
-  );
-  const losersFinal = losers.find((match) => !match.nextMatchId);
-  const grandFinal: Match = {
-    id: "grand-final",
-    round: Math.max(...winners.map((match) => match.round)) + 1,
-    roundLabel: "Grand Final",
-    position: 0,
-    bracket: "winners",
-    participantAId: null,
-    participantBId: null,
-    scoreA: null,
-    scoreB: null,
-    winnerId: null,
-    status: "waiting",
-  };
-  if (winnersFinal) {
-    winnersFinal.nextMatchId = grandFinal.id;
-    winnersFinal.nextSlot = "a";
-  }
-  if (losersFinal) {
-    losersFinal.nextMatchId = grandFinal.id;
-    losersFinal.nextSlot = "b";
-  }
-  return [...winners, ...losers, grandFinal];
-}
-
-function buildRoundRobin(participants: Participant[]): Match[] {
-  const rotating: Array<Participant | null> = [...participants];
-  if (rotating.length % 2) rotating.push(null);
-  const rounds = rotating.length - 1;
-  const half = rotating.length / 2;
-  const matches: Match[] = [];
-
-  for (let round = 0; round < rounds; round += 1) {
-    for (let position = 0; position < half; position += 1) {
-      const a = rotating[position];
-      const b = rotating[rotating.length - 1 - position];
-      if (a && b) {
-        matches.push({
-          id: id("rr", round, position),
-          round,
-          roundLabel: `Round ${round + 1}`,
-          position,
-          bracket: "round-robin",
-          participantAId: a.id,
-          participantBId: b.id,
-          scoreA: null,
-          scoreB: null,
-          winnerId: null,
-          status: "ready",
-        });
-      }
-    }
-    rotating.splice(1, 0, rotating.pop() ?? null);
-  }
-  return matches;
-}
-
-function buildSwiss(participants: Participant[]): Match[] {
-  const half = Math.ceil(participants.length / 2);
-  const matches: Match[] = [];
-  for (let position = 0; position < Math.floor(participants.length / 2); position += 1) {
-    matches.push({
-      id: id("swiss", 0, position),
-      round: 0,
-      roundLabel: "Round 1",
-      position,
-      bracket: "swiss",
-      participantAId: participants[position]?.id ?? null,
-      participantBId: participants[position + half]?.id ?? null,
-      scoreA: null,
-      scoreB: null,
-      winnerId: null,
-      status: "ready",
-    });
-  }
-  return matches;
-}
-
-function autoAdvance(matches: Match[]) {
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const match of matches) {
-      if (
-        match.status === "complete" &&
-        !match.winnerId &&
-        Boolean(match.participantAId || match.participantBId)
-      ) {
-        match.winnerId = match.participantAId ?? match.participantBId;
-      }
-      if (match.status === "complete" && match.winnerId && match.nextMatchId) {
-        const target = matches.find((candidate) => candidate.id === match.nextMatchId);
-        if (!target) continue;
-        const key = match.nextSlot === "a" ? "participantAId" : "participantBId";
-        if (!target[key]) {
-          target[key] = match.winnerId;
-          target.status =
-            target.participantAId && target.participantBId ? "ready" : "waiting";
-          changed = true;
-        }
-      }
-    }
-  }
-}
-
-export function computeStandings(
-  participants: Participant[],
-  matches: Match[],
-): Standing[] {
-  const map = new Map<string, Standing>(
-    participants.map((participant) => [
-      participant.id,
-      {
-        participantId: participant.id,
-        played: 0,
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        scoreFor: 0,
-        scoreAgainst: 0,
-        points: 0,
-      },
-    ]),
-  );
-
-  for (const match of matches.filter((candidate) => candidate.status === "complete")) {
-    if (
-      !match.participantAId ||
-      !match.participantBId ||
-      match.scoreA === null ||
-      match.scoreB === null
-    ) {
-      continue;
-    }
-    const a = map.get(match.participantAId);
-    const b = map.get(match.participantBId);
-    if (!a || !b) continue;
-    a.played += 1;
-    b.played += 1;
-    a.scoreFor += match.scoreA;
-    a.scoreAgainst += match.scoreB;
-    b.scoreFor += match.scoreB;
-    b.scoreAgainst += match.scoreA;
-    if (match.scoreA === match.scoreB) {
-      a.draws += 1;
-      b.draws += 1;
-      a.points += 1;
-      b.points += 1;
-    } else if (match.scoreA > match.scoreB) {
-      a.wins += 1;
-      b.losses += 1;
-      a.points += 3;
-    } else {
-      b.wins += 1;
-      a.losses += 1;
-      b.points += 3;
-    }
-  }
-
-  return [...map.values()].sort((a, b) => {
-    const diffA = a.scoreFor - a.scoreAgainst;
-    const diffB = b.scoreFor - b.scoreAgainst;
     return (
-      b.points - a.points ||
-      diffB - diffA ||
-      b.scoreFor - a.scoreFor ||
-      participants.find((p) => p.id === a.participantId)!.seed -
-        participants.find((p) => p.id === b.participantId)!.seed
+      stage.matches.length > 0 &&
+      stage.matches.every((match) => match.status === "complete")
     );
-  });
+  }
+  const final =
+    stage.format === "double"
+      ? stage.matches.find((match) => match.id.endsWith("grand-final"))
+      : [...stage.matches].sort((a, b) => b.round - a.round)[0];
+  return final?.status === "complete";
 }
 
-export function createTournamentSnapshot(input: {
-  id: string;
-  slug: string;
-  name: string;
-  format: TournamentFormat;
-  participantNames: string[];
-  expiresAt: number;
-  createdAt: number;
-}): TournamentSnapshot {
-  const participants = input.participantNames.map((name, index) => ({
-    id: `p-${index + 1}`,
-    name,
-    seed: index + 1,
-  }));
-  const matches =
-    input.format === "single"
-      ? buildSingle(participants)
-      : input.format === "double"
-        ? buildDouble(participants)
-        : input.format === "round-robin"
-          ? buildRoundRobin(participants)
-          : buildSwiss(participants);
-  return {
-    id: input.id,
-    slug: input.slug,
-    name: input.name,
-    format: input.format,
-    status: "active",
-    participants,
-    matches,
-    standings:
-      input.format === "round-robin" || input.format === "swiss"
-        ? computeStandings(participants, matches)
-        : [],
-    revision: 1,
-    expiresAt: input.expiresAt,
-    createdAt: input.createdAt,
-  };
+
+function activeCompetitionStage(snapshot: TournamentSnapshot) {
+  const stages = snapshot.stages!;
+  return snapshot.activeStageId === "knockout"
+    ? stages.knockout
+    : stages.preliminary;
 }
 
 export function applyResult(
@@ -375,15 +61,19 @@ export function applyResult(
     scoreB: number;
   },
 ): TournamentSnapshot {
-  const copy = structuredClone(snapshot);
-  const match = copy.matches.find((candidate) => candidate.id === input.matchId);
-  if (!match || !match.participantAId || !match.participantBId) {
+  const copy = normalizeTournamentSnapshot(structuredClone(snapshot));
+  const stage = activeCompetitionStage(copy);
+  const match = stage?.matches.find((candidate) => candidate.id === input.matchId);
+  if (!stage || !match || !match.participantAId || !match.participantBId) {
     throw new Error("This match is not ready.");
+  }
+  if (stage.id === "preliminary" && stage.status === "locked") {
+    throw new Error("Unlock the preliminary stage before editing its results.");
   }
   if (input.scoreA < 0 || input.scoreB < 0) {
     throw new Error("Scores cannot be negative.");
   }
-  const allowsDraw = copy.format === "round-robin" || copy.format === "swiss";
+  const allowsDraw = stage.id === "preliminary";
   if (!allowsDraw && input.scoreA === input.scoreB && !input.winnerId) {
     throw new Error("Elimination matches require a winner.");
   }
@@ -400,7 +90,9 @@ export function applyResult(
   match.status = "complete";
 
   if (match.nextMatchId && match.winnerId) {
-    const target = copy.matches.find((candidate) => candidate.id === match.nextMatchId);
+    const target = stage.matches.find(
+      (candidate) => candidate.id === match.nextMatchId,
+    );
     if (target) {
       if (match.nextSlot === "a") target.participantAId = match.winnerId;
       else target.participantBId = match.winnerId;
@@ -408,13 +100,12 @@ export function applyResult(
         target.participantAId && target.participantBId ? "ready" : "waiting";
     }
   }
-
   if (match.loserNextMatchId && match.winnerId) {
     const loserId =
       match.winnerId === match.participantAId
         ? match.participantBId
         : match.participantAId;
-    const target = copy.matches.find(
+    const target = stage.matches.find(
       (candidate) => candidate.id === match.loserNextMatchId,
     );
     if (target) {
@@ -424,45 +115,67 @@ export function applyResult(
         target.participantAId && target.participantBId ? "ready" : "waiting";
     }
   }
+  autoAdvance(stage.matches);
 
-  autoAdvance(copy.matches);
-  if (copy.format === "round-robin" || copy.format === "swiss") {
-    copy.standings = computeStandings(copy.participants, copy.matches);
+  if (stage.id === "preliminary") {
+    refreshPreliminaryStandings(copy, stage);
+    if (stageIsComplete(stage)) {
+      stage.status = "complete";
+      if (copy.stages?.qualification) {
+        copy.stages.qualification.status = "review";
+        refreshQualification(copy);
+        copy.activeStageId = "qualifiers";
+      } else {
+        copy.status = "complete";
+      }
+    } else {
+      stage.status = "active";
+      if (copy.stages?.qualification) {
+        copy.stages.qualification.status = "pending";
+        copy.stages.qualification.proposedParticipantIds = [];
+      }
+      copy.activeStageId = "preliminary";
+      copy.status = "active";
+    }
+  } else if (stageIsComplete(stage)) {
+    stage.status = "complete";
+    copy.status = "complete";
   }
-  copy.status = copy.matches.every(
-    (candidate) => candidate.status === "complete" || candidate.status === "waiting",
-  ) && copy.matches.some((candidate) => candidate.status === "complete")
-    ? copy.matches.some((candidate) => candidate.status === "ready")
-      ? "active"
-      : "complete"
-    : "active";
+
   copy.revision += 1;
-  return copy;
+  return syncCompatibilityProjection(copy);
 }
 
 export function generateNextSwissRound(
   snapshot: TournamentSnapshot,
 ): TournamentSnapshot {
-  if (snapshot.format !== "swiss") throw new Error("This is not a Swiss tournament.");
-  const currentRound = Math.max(...snapshot.matches.map((match) => match.round));
-  const currentMatches = snapshot.matches.filter((match) => match.round === currentRound);
+  const copy = normalizeTournamentSnapshot(structuredClone(snapshot));
+  const stage = copy.stages?.preliminary;
+  if (!stage || stage.format !== "swiss") {
+    throw new Error("This is not a Swiss tournament.");
+  }
+  if (stage.status === "locked") {
+    throw new Error("The preliminary stage is locked.");
+  }
+  const currentRound = Math.max(...stage.matches.map((match) => match.round));
+  const currentMatches = stage.matches.filter(
+    (match) => match.round === currentRound,
+  );
   if (currentMatches.some((match) => match.status !== "complete")) {
     throw new Error("Finish the current round before generating the next one.");
   }
-  const maxRounds = Math.ceil(Math.log2(snapshot.participants.length));
-  if (currentRound + 1 >= maxRounds) {
+  if (currentRound + 1 >= (stage.plannedRounds ?? 1)) {
     throw new Error("All planned Swiss rounds have been generated.");
   }
 
-  const copy = structuredClone(snapshot);
   const played = new Set(
-    copy.matches
+    stage.matches
       .filter((match) => match.participantAId && match.participantBId)
       .map((match) =>
         [match.participantAId, match.participantBId].sort().join(":"),
       ),
   );
-  const ordered = copy.standings.map((standing) => standing.participantId);
+  const ordered = stage.standings.map((standing) => standing.participantId);
   const unpaired = [...ordered];
   const nextRound = currentRound + 1;
   let position = 0;
@@ -473,8 +186,8 @@ export function generateNextSwissRound(
     );
     if (opponentIndex < 0) opponentIndex = 0;
     const b = unpaired.splice(opponentIndex, 1)[0];
-    copy.matches.push({
-      id: id("swiss", nextRound, position),
+    stage.matches.push({
+      id: matchId("swiss", nextRound, position),
       round: nextRound,
       roundLabel: `Round ${nextRound + 1}`,
       position,
@@ -488,25 +201,194 @@ export function generateNextSwissRound(
     });
     position += 1;
   }
+  stage.status = "active";
+  copy.activeStageId = "preliminary";
   copy.status = "active";
   copy.revision += 1;
-  return copy;
+  return syncCompatibilityProjection(copy);
 }
 
-export function participantName(
+export function confirmQualifiers(
   snapshot: TournamentSnapshot,
-  participantId: string | null,
-) {
-  if (!participantId) return "TBD";
-  return (
-    snapshot.participants.find((participant) => participant.id === participantId)
-      ?.name ?? "TBD"
-  );
+  input: {
+    participantIds: string[];
+    acknowledgeTies?: boolean;
+  },
+): TournamentSnapshot {
+  const copy = normalizeTournamentSnapshot(structuredClone(snapshot));
+  const preliminary = copy.stages?.preliminary;
+  const qualification = copy.stages?.qualification;
+  const knockout = copy.stages?.knockout;
+  if (
+    !preliminary ||
+    !qualification ||
+    !knockout ||
+    qualification.status !== "review"
+  ) {
+    throw new Error("Qualifiers are not ready to confirm.");
+  }
+  const expected = [...qualification.proposedParticipantIds].sort();
+  const received = [...input.participantIds];
+  if (
+    received.length !== expected.length ||
+    new Set(received).size !== received.length ||
+    [...received].sort().join(":") !== expected.join(":")
+  ) {
+    throw new Error("Confirm every proposed qualifier exactly once.");
+  }
+  if (
+    qualification.cutoffTieParticipantIds.length &&
+    !input.acknowledgeTies
+  ) {
+    throw new Error("Resolve or acknowledge the qualification cutoff tie.");
+  }
+
+  const qualifierParticipants = received.map((participantId, index) => ({
+    ...copy.participants.find(
+      (participant) => participant.id === participantId,
+    )!,
+    seed: index + 1,
+  }));
+  knockout.matches =
+    knockout.format === "single"
+      ? buildSingle(qualifierParticipants, "ko-")
+      : buildDouble(qualifierParticipants, "ko-");
+  knockout.status = "active";
+  qualification.status = "confirmed";
+  qualification.confirmedParticipantIds = received;
+  preliminary.status = "locked";
+  copy.activeStageId = "knockout";
+  copy.status = "active";
+  copy.revision += 1;
+  return syncCompatibilityProjection(copy);
 }
 
-export const formatLabels: Record<TournamentFormat, string> = {
-  single: "Single elimination",
-  double: "Double elimination",
-  "round-robin": "Round robin",
-  swiss: "Swiss",
-};
+export function unlockPreliminaryStage(
+  snapshot: TournamentSnapshot,
+): TournamentSnapshot {
+  const copy = normalizeTournamentSnapshot(structuredClone(snapshot));
+  const preliminary = copy.stages?.preliminary;
+  const qualification = copy.stages?.qualification;
+  const knockout = copy.stages?.knockout;
+  if (!preliminary || !qualification || !knockout) {
+    throw new Error("This tournament has no preliminary stage to unlock.");
+  }
+  if (preliminary.status !== "locked") {
+    throw new Error("The preliminary stage is already unlocked.");
+  }
+  preliminary.status = "complete";
+  qualification.status = "review";
+  qualification.confirmedParticipantIds = [];
+  knockout.status = "preview";
+  knockout.matches = [];
+  refreshQualification(copy);
+  copy.activeStageId = "qualifiers";
+  copy.status = "active";
+  copy.revision += 1;
+  return syncCompatibilityProjection(copy);
+}
+
+export function stageMatches(
+  snapshot: TournamentSnapshot,
+  stageId: TournamentStageId,
+) {
+  const normalized = normalizeTournamentSnapshot(snapshot);
+  if (stageId === "preliminary") {
+    return normalized.stages?.preliminary?.matches ?? [];
+  }
+  if (stageId === "knockout") {
+    return normalized.stages?.knockout?.matches ?? [];
+  }
+  return [];
+}
+
+export function stageStandings(
+  snapshot: TournamentSnapshot,
+  stageId: TournamentStageId,
+) {
+  const normalized = normalizeTournamentSnapshot(snapshot);
+  return stageId === "preliminary"
+    ? normalized.stages?.preliminary?.standings ?? []
+    : [];
+}
+
+export function upgradeDoubleEliminationSnapshot(
+  snapshot: TournamentSnapshot,
+): TournamentSnapshot {
+  if (snapshot.format !== "double") return normalizeTournamentSnapshot(snapshot);
+  const normalized = normalizeTournamentSnapshot(snapshot);
+  const matches = normalized.stages?.knockout?.matches ?? normalized.matches;
+  const size = nextPowerOfTwo(normalized.participants.length);
+  const winnerRounds = Math.log2(size);
+  const expectedLoserRounds = Math.max(0, (winnerRounds - 1) * 2);
+  const actualLoserRounds = new Set(
+    matches
+      .filter((match) => match.bracket === "losers")
+      .map((match) => match.roundLabel),
+  ).size;
+  const winnersFinal = matches.find(
+    (match) =>
+      match.bracket === "winners" &&
+      !match.id.endsWith("grand-final") &&
+      match.round === winnerRounds - 1,
+  );
+  if (
+    actualLoserRounds === expectedLoserRounds &&
+    (expectedLoserRounds === 0 || Boolean(winnersFinal?.loserNextMatchId)) &&
+    !matches.some((match) => match.id.endsWith("grand-final-reset"))
+  ) {
+    return normalized;
+  }
+
+  let rebuilt = createTournamentSnapshot({
+    id: normalized.id,
+    slug: normalized.slug,
+    name: normalized.name,
+    format: "double",
+    participantNames: [...normalized.participants]
+      .sort((a, b) => a.seed - b.seed)
+      .map((participant) => participant.name),
+    expiresAt: normalized.expiresAt,
+    createdAt: normalized.createdAt,
+  });
+  const completed = matches
+    .filter(
+      (match) =>
+        match.status === "complete" &&
+        match.participantAId &&
+        match.participantBId &&
+        match.scoreA !== null &&
+        match.scoreB !== null,
+    )
+    .sort(
+      (a, b) =>
+        Number(a.bracket === "losers") -
+          Number(b.bracket === "losers") ||
+        a.round - b.round ||
+        a.position - b.position,
+    );
+  for (const previous of completed) {
+    const target = rebuilt.matches.find((match) => match.id === previous.id);
+    if (
+      !target ||
+      !target.participantAId ||
+      !target.participantBId ||
+      [previous.participantAId, previous.participantBId].sort().join(":") !==
+        [target.participantAId, target.participantBId].sort().join(":")
+    ) {
+      continue;
+    }
+    try {
+      rebuilt = applyResult(rebuilt, {
+        matchId: target.id,
+        winnerId: previous.winnerId,
+        scoreA: previous.scoreA!,
+        scoreB: previous.scoreB!,
+      });
+    } catch {
+      // Keep every compatible legacy result and leave the rest ready to replay.
+    }
+  }
+  rebuilt.revision = normalized.revision + 1;
+  return rebuilt;
+}
