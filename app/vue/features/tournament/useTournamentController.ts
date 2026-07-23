@@ -622,7 +622,7 @@ async function generateSwissRound() {
 
 function selectStage(stageId: TournamentStageId) {
   selectedStageId.value = stageId;
-  editingMatchId.value = "";
+  closeResultEditor();
   void updateConnectors();
 }
 

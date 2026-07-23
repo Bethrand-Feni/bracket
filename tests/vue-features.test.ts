@@ -5,6 +5,8 @@ import { createMemoryHistory } from "vue-router";
 import { describe, expect, it } from "vitest";
 import CreateTournamentPage from "../app/vue/features/create/CreateTournamentPage.vue";
 import TournamentStageSwitcher from "../app/vue/features/tournament/TournamentStageSwitcher.vue";
+import AppModal from "../app/vue/components/ui/AppModal.vue";
+import AppButton from "../app/vue/components/ui/AppButton.vue";
 import { createBracketRouter } from "../app/vue/router";
 
 describe("Vue feature boundaries", () => {
@@ -55,5 +57,20 @@ describe("Vue feature boundaries", () => {
     });
     expect(wrapper.get(".stage-complete").text()).toContain("Swiss");
     expect(wrapper.get(".selected.current").text()).toContain("Qualifiers");
+  });
+
+  it("closes the shared modal with Escape", async () => {
+    const wrapper = mount(AppModal, { props: { open: true, title: "Settings", onClose: () => wrapper.setProps({ open: false }) } });
+    await wrapper.vm.$nextTick();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await wrapper.vm.$nextTick();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    wrapper.unmount();
+  });
+
+  it("supports full-width shared primary actions", () => {
+    const wrapper = mount(AppButton, { props: { variant: "primary", full: true }, slots: { default: "Continue" } });
+    expect(wrapper.get("button").classes()).toContain("w-full");
+    expect(wrapper.text()).toBe("Continue");
   });
 });

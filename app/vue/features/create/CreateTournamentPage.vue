@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   createTournamentSnapshot,
@@ -11,6 +11,8 @@ import {
 } from "../../../../lib/tournament";
 import { createLocalId } from "../../../local-tournaments";
 import { indexedDbTournamentRepository } from "../local-storage/repository";
+import AppButton from "../../components/ui/AppButton.vue";
+import AppModal from "../../components/ui/AppModal.vue";
 
 const emit = defineEmits<{ error: [message: string] }>();
 const router = useRouter();
@@ -112,10 +114,6 @@ function setSetupState(state: "closed" | "editing") {
   setupState.value = state;
 }
 
-function handleEscape(event: KeyboardEvent) {
-  if (event.key === "Escape" && setupState.value === "editing") setSetupState("closed");
-}
-
 async function createTournament() {
   emit("error", "");
   const participants = [...participantNames.value];
@@ -186,7 +184,6 @@ async function createTournament() {
   }
 }
 
-watch(setupState, (state) => document.body.classList.toggle("modal-open", state === "editing"));
 watch(
   () => [createForm.value.format, participantCount.value] as const,
   ([format]) => {
@@ -200,91 +197,78 @@ watch(
   },
 );
 
-window.addEventListener("keydown", handleEscape);
-onBeforeUnmount(() => {
-  window.removeEventListener("keydown", handleEscape);
-  document.body.classList.remove("modal-open");
-});
 </script>
 
 <template>
-  <main class="create-page">
-    <section class="create-intro">
-      <p class="eyebrow">01 / FORMAT</p>
-      <h1>Build a tournament<br>in minutes.</h1>
-      <p>Choose a format, add your participants, and we’ll prepare the matches.</p>
-      <div class="format-list">
-        <button v-for="format in formats" :key="format.value" :class="{ selected: createForm.format === format.value }" :aria-pressed="createForm.format === format.value" @click="createForm.format = format.value">
-          <span class="radio-mark"></span>
-          <span><b>{{ format.label }}</b><small>{{ format.description }}</small></span>
-          <span class="format-glyph">┫</span>
+  <main class="grid min-h-[calc(100vh-80px)] lg:grid-cols-[minmax(360px,.85fr)_minmax(480px,1.15fr)]">
+    <section class="border-b border-ink/20 px-[5vw] py-12 lg:border-b-0 lg:border-r lg:py-[6vw]">
+      <p class="mb-4 text-xs font-extrabold tracking-[.13em] text-blue">01 / FORMAT</p>
+      <h1 class="font-display text-[clamp(3rem,6vw,6.5rem)] font-semibold leading-[.92] tracking-[-.06em]">Build a tournament<br>in minutes.</h1>
+      <p class="mt-6 max-w-xl text-base leading-7 text-ink/70">Choose a format, add your participants, and we’ll prepare the matches.</p>
+      <div class="mt-10 grid border-t border-ink/20">
+        <button v-for="format in formats" :key="format.value" class="grid grid-cols-[18px_1fr_auto] items-center gap-4 border-b border-ink/20 px-1 py-4 text-left transition-colors hover:text-blue" :class="createForm.format === format.value ? 'text-blue' : 'text-ink'" :aria-pressed="createForm.format === format.value" @click="createForm.format = format.value">
+          <span class="size-4 rounded-full border border-current p-[3px]"><span v-if="createForm.format === format.value" class="block size-full rounded-full bg-blue"></span></span>
+          <span class="grid gap-1"><b>{{ format.label }}</b><small class="text-xs leading-5 text-ink/65">{{ format.description }}</small></span>
+          <span class="font-display text-xl">┫</span>
         </button>
       </div>
     </section>
-    <section class="create-form-panel">
-      <label><span>Tournament name</span><input v-model="createForm.name" maxlength="80" placeholder="e.g. Summer Showdown"></label>
-      <label>
-        <span class="participant-label">Participants <b :class="{ over: participantCount > formatLimit }">{{ participantCount }} / {{ formatLimit }}</b></span>
-        <small>One name per line, ordered by seed · approximately {{ estimatedMatches }} matches</small>
-        <textarea v-model="createForm.participants" rows="9"></textarea>
+    <section class="grid content-center gap-6 px-[5vw] py-12 lg:py-[6vw]">
+      <label class="grid gap-2 text-sm font-semibold"><span>Tournament name</span><input v-model="createForm.name" class="rounded-brand border border-ink/25 bg-paper px-4 py-3 outline-none focus:border-blue focus:ring-2 focus:ring-blue/20" maxlength="80" placeholder="e.g. Summer Showdown"></label>
+      <label class="grid gap-2 text-sm font-semibold">
+        <span class="flex justify-between">Participants <b :class="participantCount > formatLimit ? 'text-brown' : 'text-blue'">{{ participantCount }} / {{ formatLimit }}</b></span>
+        <small class="font-normal text-ink/60">One name per line, ordered by seed · approximately {{ estimatedMatches }} matches</small>
+        <textarea v-model="createForm.participants" class="min-h-56 rounded-brand border border-ink/25 bg-paper px-4 py-3 outline-none focus:border-blue focus:ring-2 focus:ring-blue/20" rows="9"></textarea>
       </label>
-      <label v-if="createForm.format !== 'groups'" class="toggle-row">
-        <span><b>Shuffle seeds</b><small>Randomize the starting order once.</small></span>
-        <input v-model="createForm.shuffle" type="checkbox">
+      <label v-if="createForm.format !== 'groups'" class="flex items-center justify-between gap-6 border-y border-ink/15 py-4">
+        <span class="grid gap-1"><b>Shuffle seeds</b><small class="text-xs text-ink/60">Randomize the starting order once.</small></span>
+        <input v-model="createForm.shuffle" class="size-5 accent-blue" type="checkbox">
       </label>
-      <section v-if="hasPreliminarySettings" class="compact-settings-card">
-        <div><span>{{ setupModalTitle }}</span><strong>{{ preliminarySettingsSummary }}</strong></div>
-        <button type="button" class="settings-cog" :aria-label="`Open ${setupModalTitle.toLowerCase()}`" @click="setSetupState('editing')"><span aria-hidden="true">⚙</span></button>
+      <section v-if="hasPreliminarySettings" class="flex items-center justify-between gap-5 rounded-brand border border-ink/20 bg-modest/45 p-4">
+        <div class="grid gap-1"><span class="text-xs font-extrabold uppercase tracking-[.12em] text-blue">{{ setupModalTitle }}</span><strong class="text-sm">{{ preliminarySettingsSummary }}</strong></div>
+        <AppButton type="button" variant="outline" icon-only :aria-label="`Open ${setupModalTitle.toLowerCase()}`" @click="setSetupState('editing')"><span aria-hidden="true">⚙</span></AppButton>
       </section>
-      <Teleport to="body">
-        <div v-if="setupState === 'editing' && hasPreliminarySettings" class="setup-modal-backdrop" @click.self="setSetupState('closed')">
-          <section class="setup-modal" role="dialog" aria-modal="true" aria-labelledby="setup-modal-title">
-            <header class="setup-modal-header">
-              <div><p class="eyebrow">TOURNAMENT SETTINGS</p><h2 id="setup-modal-title">{{ setupModalTitle }}</h2><p>Choose how this stage runs and how it decides who advances.</p></div>
-              <button type="button" class="setup-modal-close" aria-label="Close settings" @click="setSetupState('closed')">×</button>
-            </header>
-            <div class="setup-modal-content">
-              <section v-if="createForm.format === 'swiss'" class="setup-block">
-                <div class="setup-heading"><span><b>Swiss rounds</b><small>Choose how thoroughly records are separated.</small></span><strong>{{ swissRounds }} rounds</strong></div>
-                <div class="segmented-options three">
-                  <button v-for="preset in [{ value: 'short', label: 'Short', rounds: Math.max(1, swissStandardRounds - 1) }, { value: 'standard', label: 'Standard', rounds: swissStandardRounds }, { value: 'thorough', label: 'Thorough', rounds: Math.min(Math.max(1, participantCount - 1), swissStandardRounds + 1) }]" :key="preset.value" type="button" :class="{ selected: createForm.swissPreset === preset.value }" @click="createForm.swissPreset = preset.value as typeof createForm.swissPreset">
-                    <b>{{ preset.label }}</b><small>{{ preset.rounds }} rounds</small>
+      <AppModal :open="setupState === 'editing' && hasPreliminarySettings" :title="setupModalTitle" description="Choose how this stage runs and how it decides who advances." @close="setSetupState('closed')">
+            <div class="grid gap-5">
+              <section v-if="createForm.format === 'swiss'" class="grid gap-4 border-t border-ink/15 pt-5">
+                <div class="flex items-start justify-between gap-4"><span class="grid"><b>Swiss rounds</b><small class="text-xs text-ink/60">Choose how thoroughly records are separated.</small></span><strong class="text-blue">{{ swissRounds }} rounds</strong></div>
+                <div class="grid grid-cols-3 gap-2">
+                  <button v-for="preset in [{ value: 'short', label: 'Short', rounds: Math.max(1, swissStandardRounds - 1) }, { value: 'standard', label: 'Standard', rounds: swissStandardRounds }, { value: 'thorough', label: 'Thorough', rounds: Math.min(Math.max(1, participantCount - 1), swissStandardRounds + 1) }]" :key="preset.value" type="button" class="grid gap-1 rounded-brand border px-3 py-3 text-left" :class="createForm.swissPreset === preset.value ? 'border-blue bg-blue text-paper' : 'border-ink/20'" @click="createForm.swissPreset = preset.value as typeof createForm.swissPreset">
+                    <b>{{ preset.label }}</b><small class="text-xs opacity-70">{{ preset.rounds }} rounds</small>
                   </button>
                 </div>
               </section>
-              <section v-if="createForm.format === 'groups'" class="setup-block">
-                <div class="setup-heading"><span><b>Group setup</b><small>Equal groups only for this first version.</small></span><strong v-if="groupSize">{{ createForm.groupCount }} × {{ groupSize }}</strong></div>
-                <div v-if="validGroupCounts.length" class="form-grid two">
-                  <label><span>Number of groups</span><select v-model.number="createForm.groupCount"><option v-for="count in validGroupCounts" :key="count" :value="count">{{ count }} groups</option></select></label>
-                  <label><span>Players per group</span><input :value="groupSize || '—'" readonly></label>
+              <section v-if="createForm.format === 'groups'" class="grid gap-4 border-t border-ink/15 pt-5">
+                <div class="flex items-start justify-between gap-4"><span class="grid"><b>Group setup</b><small class="text-xs text-ink/60">Equal groups only for this first version.</small></span><strong v-if="groupSize" class="text-blue">{{ createForm.groupCount }} × {{ groupSize }}</strong></div>
+                <div v-if="validGroupCounts.length" class="grid gap-4 sm:grid-cols-2">
+                  <label class="grid gap-2 text-sm font-semibold"><span>Number of groups</span><select v-model.number="createForm.groupCount" class="rounded-brand border border-ink/25 bg-paper px-3 py-2.5"><option v-for="count in validGroupCounts" :key="count" :value="count">{{ count }} groups</option></select></label>
+                  <label class="grid gap-2 text-sm font-semibold"><span>Players per group</span><input :value="groupSize || '—'" class="rounded-brand border border-ink/25 bg-modest/40 px-3 py-2.5" readonly></label>
                 </div>
-                <p v-else class="inline-warning">Add a participant total that can form at least two equal groups.</p>
-                <label><span>Assignment method</span><select v-model="createForm.groupAssignment"><option value="seeded">Balance by seed</option><option value="random">Shuffle randomly</option><option value="manual">Assign manually</option></select></label>
-                <div v-if="createForm.groupAssignment === 'manual'" class="manual-group-list">
-                  <label v-for="(name, index) in participantNames" :key="`manual-${index}-${name}`"><span>{{ name }}</span><select v-model="createForm.manualGroups[`p-${index + 1}`]"><option value="">Choose group</option><option v-for="groupIndex in createForm.groupCount" :key="groupIndex" :value="`group-${groupIndex}`">Group {{ groupLetter(groupIndex) }}</option></select></label>
+                <p v-else class="border-l-2 border-brown pl-3 text-xs text-brown">Add a participant total that can form at least two equal groups.</p>
+                <label class="grid gap-2 text-sm font-semibold"><span>Assignment method</span><select v-model="createForm.groupAssignment" class="rounded-brand border border-ink/25 bg-paper px-3 py-2.5"><option value="seeded">Balance by seed</option><option value="random">Shuffle randomly</option><option value="manual">Assign manually</option></select></label>
+                <div v-if="createForm.groupAssignment === 'manual'" class="max-h-64 divide-y divide-ink/15 overflow-auto border border-ink/15">
+                  <label v-for="(name, index) in participantNames" :key="`manual-${index}-${name}`" class="grid grid-cols-[1fr_10rem] items-center gap-3 p-3 text-sm"><span>{{ name }}</span><select v-model="createForm.manualGroups[`p-${index + 1}`]" class="rounded-brand border border-ink/25 bg-paper px-2 py-1.5"><option value="">Choose group</option><option v-for="groupIndex in createForm.groupCount" :key="groupIndex" :value="`group-${groupIndex}`">Group {{ groupLetter(groupIndex) }}</option></select></label>
                 </div>
-                <div class="points-grid"><label><span>Win</span><input v-model.number="createForm.winPoints" type="number"></label><label><span>Draw</span><input v-model.number="createForm.drawPoints" type="number"></label><label><span>Loss</span><input v-model.number="createForm.lossPoints" type="number"></label></div>
-                <p class="setup-summary">{{ participantCount }} players · {{ createForm.groupCount }} groups of {{ groupSize || "—" }} · {{ Math.max(0, groupSize - 1) }} matches per player</p>
+                <div class="grid grid-cols-3 gap-3 [&_label]:grid [&_label]:gap-1 [&_label]:text-xs [&_label]:font-semibold [&_input]:min-w-0 [&_input]:rounded-brand [&_input]:border [&_input]:border-ink/25 [&_input]:bg-paper [&_input]:px-3 [&_input]:py-2"><label><span>Win</span><input v-model.number="createForm.winPoints" type="number"></label><label><span>Draw</span><input v-model.number="createForm.drawPoints" type="number"></label><label><span>Loss</span><input v-model.number="createForm.lossPoints" type="number"></label></div>
+                <p class="bg-modest/45 p-3 text-xs text-ink/70">{{ participantCount }} players · {{ createForm.groupCount }} groups of {{ groupSize || "—" }} · {{ Math.max(0, groupSize - 1) }} matches per player</p>
               </section>
-              <label v-if="createForm.format === 'round-robin' || createForm.format === 'swiss'" class="toggle-row knockout-toggle"><span><b>Add a knockout stage</b><small>Finish with a bracket after standings are confirmed.</small></span><input v-model="createForm.knockoutEnabled" type="checkbox"></label>
-              <section v-if="hasKnockoutSetup" class="setup-block knockout-setup">
-                <div class="setup-heading"><span><b>Knockout finish</b><small>These settings lock when you create.</small></span></div>
-                <div class="form-grid two">
+              <label v-if="createForm.format === 'round-robin' || createForm.format === 'swiss'" class="flex items-center justify-between gap-6 border-y border-ink/15 py-4"><span class="grid"><b>Add a knockout stage</b><small class="text-xs text-ink/60">Finish with a bracket after standings are confirmed.</small></span><input v-model="createForm.knockoutEnabled" class="size-5 accent-blue" type="checkbox"></label>
+              <section v-if="hasKnockoutSetup" class="grid gap-4 border-t border-ink/15 pt-5">
+                <div class="grid"><b>Knockout finish</b><small class="text-xs text-ink/60">These settings lock when you create.</small></div>
+                <div class="grid gap-4 sm:grid-cols-2 [&_label]:grid [&_label]:gap-2 [&_label]:text-sm [&_label]:font-semibold [&_select]:rounded-brand [&_select]:border [&_select]:border-ink/25 [&_select]:bg-paper [&_select]:px-3 [&_select]:py-2.5">
                   <label><span>Format</span><select v-model="createForm.knockoutFormat"><option value="single">Single elimination</option><option value="double">Double elimination</option></select></label>
                   <label v-if="createForm.format === 'groups'"><span>Qualify from each group</span><select v-model.number="createForm.qualifiersPerGroup"><option v-for="count in Math.min(3, Math.max(1, groupSize))" :key="count" :value="count">Top {{ count }}</option></select></label>
                   <label v-else><span>Number of qualifiers</span><select v-model.number="createForm.qualifierCount"><option v-for="count in [2, 4, 8].filter((value) => value <= participantCount)" :key="count" :value="count">Top {{ count }}</option><option v-for="count in Array.from({ length: Math.max(0, participantCount - 1) }, (_, index) => index + 2).filter((value) => ![2, 4, 8].includes(value))" :key="`custom-${count}`" :value="count">Custom · {{ count }}</option></select></label>
                   <label><span>Seeding method</span><select v-model="createForm.seeding"><option value="standard">Standard · highest vs lowest</option><option v-if="createForm.format === 'groups'" value="cross-group">Cross-group · recommended</option><option value="random">Random draw</option><option value="manual">Manual at qualifier review</option></select></label>
                 </div>
-                <p v-if="Math.log2(createForm.format === 'groups' ? createForm.qualifiersPerGroup * createForm.groupCount : createForm.qualifierCount) % 1 !== 0" class="bye-note">The highest seeds will receive first-round byes.</p>
+                <p v-if="Math.log2(createForm.format === 'groups' ? createForm.qualifiersPerGroup * createForm.groupCount : createForm.qualifierCount) % 1 !== 0" class="border-l-2 border-brown pl-3 text-xs text-brown">The highest seeds will receive first-round byes.</p>
               </section>
             </div>
-            <footer class="setup-modal-footer"><span>{{ preliminarySettingsSummary }}</span><button type="button" class="primary-button" @click="setSetupState('closed')">Save settings</button></footer>
-          </section>
-        </div>
-      </Teleport>
-      <button class="primary-button wide" :disabled="loading" @click="createTournament">{{ loading ? "Creating…" : "Create tournament" }} <span>→</span></button>
-      <p class="private-note">⌑ Saved automatically in this browser. No account and no upload.</p>
-      <p class="browser-warning compact">Clearing this browser’s site data removes local tournaments. You can export a backup after creation.</p>
+            <footer class="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-ink/15 pt-5"><span class="text-xs text-ink/65">{{ preliminarySettingsSummary }}</span><AppButton type="button" variant="primary" @click="setSetupState('closed')">Save settings</AppButton></footer>
+      </AppModal>
+      <AppButton variant="primary" full :loading="loading" @click="createTournament">Create tournament <span>→</span></AppButton>
+      <p class="text-center text-xs text-ink/60">⌑ Saved automatically in this browser. No account and no upload.</p>
+      <p class="mx-auto max-w-xl border-l-2 border-brown pl-3 text-xs leading-5 text-brown">Clearing this browser’s site data removes local tournaments. You can export a backup after creation.</p>
     </section>
   </main>
 </template>

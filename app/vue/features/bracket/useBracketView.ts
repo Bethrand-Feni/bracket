@@ -1,12 +1,12 @@
 import { computed, type Ref } from "vue";
-import { participantName, type Match, type TournamentFormat, type TournamentSnapshot, type TournamentStageId } from "../../../../lib/tournament";
+import { participantName, type Match, type PreliminaryStage, type TournamentFormat, type TournamentSnapshot, type TournamentStageId } from "../../../../lib/tournament";
 
 export function useBracketView(input: {
   tournament: Ref<TournamentSnapshot | null>;
   displayedMatches: Ref<Match[]>;
   displayedStandings: Ref<Array<{ participantId: string; points: number }>>;
   displayedFormat: Ref<TournamentFormat>;
-  preliminaryStage: Ref<TournamentSnapshot["stages"]["preliminary"] | undefined>;
+  preliminaryStage: Ref<PreliminaryStage | undefined>;
   selectedStageId: Ref<TournamentStageId>;
   showUpcomingRounds: Ref<boolean>;
 }) {
@@ -216,4 +216,3 @@ export function useBracketView(input: {
     participantSlotLabel,
   };
 }
-

@@ -1,0 +1,96 @@
+.bracket-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, .24fr);
+}
+
+.bracket-layout.no-standings { grid-template-columns: minmax(0, 1fr); }
+.bracket-section { min-width: max-content; }
+.bracket-section + .bracket-section { border-top: 1px solid rgb(62 58 54 / 20%); }
+
+.bracket-canvas {
+  display: flex;
+  gap: clamp(5rem, 7vw, 8.5rem);
+  min-width: max-content;
+  padding: 1.5rem 2rem 2rem;
+  position: relative;
+}
+
+.bracket-column {
+  display: flex;
+  flex: 0 0 255px;
+  flex-direction: column;
+  position: relative;
+  z-index: 2;
+}
+
+.bracket-column > h2 { margin: 0 0 1rem; }
+.match-stack { display: flex; flex: 1; flex-direction: column; justify-content: space-around; min-height: 0; }
+.match-card { flex: 0 0 116px; height: 116px; }
+.match-card:not(.is-complete) { flex-basis: 84px; height: 84px; }
+
+.bracket-connectors {
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+  position: absolute;
+  z-index: 1;
+}
+
+.bracket-connectors path {
+  fill: none;
+  stroke: var(--color-blue);
+  stroke-linecap: square;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.bracket-connectors path.loser { stroke: var(--color-brown); stroke-dasharray: 5 4; }
+.bracket-connectors path.round-flow { stroke-dasharray: 2 5; stroke-linecap: round; stroke-width: 2; }
+
+.unified-double-canvas { align-items: stretch; padding-top: 1.25rem; }
+.unified-double-column { height: 100%; }
+.unified-double-column > h2 { flex: 0 0 1.6rem; }
+.unified-double-column .double-tier { flex: 0 0 auto; position: relative; }
+.double-tier-winners { height: var(--double-upper-height); }
+.double-tier-championship { height: 150px; justify-content: center; }
+.double-tier-losers { height: var(--double-lower-height); }
+.unified-double-card { overflow: visible; }
+
+.section-grand-final .bracket-canvas {
+  gap: clamp(4.5rem, 6vw, 7rem);
+  justify-content: center;
+  min-width: 900px;
+  padding-block: 2rem 2.5rem;
+}
+
+.section-grand-final .bracket-column:first-of-type .match-stack {
+  gap: 4.5rem;
+  justify-content: center;
+  position: relative;
+}
+
+.section-grand-final .bracket-column:first-of-type .match-stack::after {
+  background: var(--color-paper);
+  color: var(--color-brown);
+  content: "LOSER DROPS ↓";
+  font-size: .56rem;
+  font-weight: 800;
+  left: 50%;
+  letter-spacing: .1em;
+  padding: .25rem .45rem;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  z-index: 3;
+}
+
+.section-grand-final .bracket-column:last-of-type { opacity: .72; }
+
+@media (max-width: 980px) {
+  .bracket-layout { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 680px) {
+  .bracket-canvas { gap: 5rem; padding: 1rem; }
+  .section-grand-final .bracket-canvas { justify-content: flex-start; min-width: max-content; }
+}

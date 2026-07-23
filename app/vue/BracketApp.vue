@@ -2,6 +2,7 @@
 import CreateTournamentPage from "./features/create/CreateTournamentPage.vue";
 import HomePage from "./features/home/HomePage.vue";
 import AppHeader from "./components/ui/AppHeader.vue";
+import AppButton from "./components/ui/AppButton.vue";
 import AccountTournamentsPage from "./features/account/AccountTournamentsPage.vue";
 import NameWheelPage from "./features/wheel/NameWheelPage.vue";
 import TournamentStageSwitcher from "./features/tournament/TournamentStageSwitcher.vue";
@@ -104,7 +105,7 @@ const {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="min-h-screen">
     <AppHeader
       :screen="route"
       :signed-in="Boolean(user)"
@@ -115,24 +116,24 @@ const {
     />
     <input
       ref="importInput"
-      class="visually-hidden"
+      class="sr-only"
       type="file"
       accept=".json,.bracket.json,application/json"
       aria-label="Import a tournament backup"
       @change="importTournament"
     >
 
-    <div v-if="remoteRevision" class="refresh-banner">
+    <div v-if="remoteRevision" class="texture-brown flex items-center justify-between gap-4 px-[4vw] py-3 text-sm text-paper">
       <span>Changes have occurred — refresh to see.</span>
-      <button @click="loadTournament">Refresh bracket</button>
+      <button class="font-bold underline" @click="loadTournament">Refresh bracket</button>
     </div>
-    <div v-if="error" class="message error-message" role="alert">
+    <div v-if="error" class="flex items-center justify-between border-b border-ink/20 bg-[#ead8d0] px-[4vw] py-3 text-sm" role="alert">
       <span>{{ error }}</span>
-      <button @click="error = ''" aria-label="Dismiss">×</button>
+      <button class="text-xl" @click="error = ''" aria-label="Dismiss">×</button>
     </div>
-    <div v-if="notice" class="message notice-message" role="status">
+    <div v-if="notice" class="flex items-center justify-between border-b border-ink/20 bg-modest px-[4vw] py-3 text-sm" role="status">
       <span>{{ notice }}</span>
-      <button @click="notice = ''" aria-label="Dismiss">×</button>
+      <button class="text-xl" @click="notice = ''" aria-label="Dismiss">×</button>
     </div>
 
     <HomePage
@@ -177,19 +178,19 @@ const {
       @fullscreen="requestFullscreen"
     />
 
-    <main v-else class="tournament-page">
-      <div v-if="loading" class="loading-state">Loading tournament…</div>
+    <main v-else class="px-[4vw] py-10">
+      <div v-if="loading" class="grid min-h-80 place-items-center text-ink/60">Loading tournament…</div>
       <template v-else-if="tournament">
-        <section class="tournament-heading">
+        <section class="mb-8 flex flex-wrap items-end justify-between gap-8">
           <div>
-            <p class="eyebrow">{{ isManager ? "ORGANIZER VIEW" : "PUBLIC VIEW" }}</p>
-            <h1>{{ tournament.name }}</h1>
-            <p>{{ tournament.participants.length }} players · {{ formatLabels[tournament.format] }} · {{ tournament.status }}</p>
+            <p class="mb-3 text-xs font-extrabold tracking-[.13em] text-blue">{{ isManager ? "ORGANIZER VIEW" : "PUBLIC VIEW" }}</p>
+            <h1 class="font-display text-[clamp(3rem,6vw,6.5rem)] font-semibold leading-[.92] tracking-[-.06em]">{{ tournament.name }}</h1>
+            <p class="mt-2 text-sm text-ink/70">{{ tournament.participants.length }} players · {{ formatLabels[tournament.format] }} · {{ tournament.status }}</p>
           </div>
-          <div class="tournament-actions">
-            <button class="outline-button" @click="navigate(`${tournamentBasePath}/wheel`)">Open name wheel</button>
-            <button v-if="!isLocal" class="outline-button" @click="copyText(publicUrl(), 'Public link copied.')">Copy public link</button>
-            <button v-else-if="isManager" class="primary-button" :disabled="loading" @click="hostAndShare">
+          <div class="flex flex-wrap gap-3">
+            <AppButton @click="navigate(`${tournamentBasePath}/wheel`)">Open name wheel</AppButton>
+            <AppButton v-if="!isLocal" @click="copyText(publicUrl(), 'Public link copied.')">Copy public link</AppButton>
+            <AppButton v-else-if="isManager" variant="primary" :disabled="loading" @click="hostAndShare">
               {{
                 localRecord?.hostedSlug && localRecord.hostingStatus === "hosted"
                   ? "Open hosted copy"
@@ -197,18 +198,18 @@ const {
                     ? "Host and share"
                     : "Sign in to host and share"
               }}
-            </button>
+            </AppButton>
           </div>
         </section>
 
-        <section v-if="winner" class="champion-strip">
-          <span>CHAMPION</span><strong>{{ winner }}</strong><span class="champion-mark">┫</span>
+        <section v-if="winner" class="texture-blue my-8 grid grid-cols-[auto_1fr_auto] items-center gap-6 px-6 py-5 text-paper">
+          <span class="text-xs font-extrabold tracking-[.14em]">CHAMPION</span><strong class="font-display text-3xl">{{ winner }}</strong><span class="text-3xl">┫</span>
         </section>
 
-        <section v-if="isManager" class="organizer-note" :class="{ 'local-note': isLocal }">
+        <section v-if="isManager" class="my-5 flex flex-wrap items-center justify-between gap-4 border border-ink/20 px-4 py-3 text-sm" :class="isLocal ? 'bg-modest/50' : 'bg-paper'">
           <span v-if="isLocal">Local-only · {{ localSaveText }}.</span>
           <span v-else>Hosted organizer access belongs to your signed-in account.</span>
-          <div>
+          <div class="flex flex-wrap gap-4 [&_button]:font-semibold [&_button]:text-blue [&_button]:underline">
             <button v-if="!isLocal" @click="copyText(organizerUrl(), 'Organizer link copied.')">Copy organizer link</button>
             <button v-if="!isLocal && legacyHosted" @click="claimLegacyTournament">
               {{ user ? "Claim to my account" : "Sign in to claim" }}
@@ -219,12 +220,12 @@ const {
           </div>
         </section>
 
-        <section v-if="localRecord?.hostingStatus === 'sync-error' && localRecord.pendingMutation" class="sync-error-panel">
+        <section v-if="localRecord?.hostingStatus === 'sync-error' && localRecord.pendingMutation" class="my-5 flex flex-wrap items-center justify-between gap-5 border border-brown bg-[#ead8d0] p-5">
           <div>
             <strong>Hosted sync needs attention</strong>
-            <p>Your result is safe in this browser. Retry when you are back online.</p>
+            <p class="mt-1 text-sm">Your result is safe in this browser. Retry when you are back online.</p>
           </div>
-          <button class="outline-button" :disabled="loading" @click="retryHostedSync">Retry sync</button>
+          <AppButton :disabled="loading" @click="retryHostedSync">Retry sync</AppButton>
         </section>
 
         <TournamentStageSwitcher
@@ -252,16 +253,16 @@ const {
         />
         <section
           v-else-if="selectedStageId === 'knockout' && knockoutStage?.status === 'preview'"
-          class="knockout-preview-board"
+          class="my-6 border border-ink/20"
         >
-          <div class="future-stage-note">
-            <p class="eyebrow">FUTURE STAGE</p>
-            <h2>{{ knockoutStage.format === "double" ? "Double" : "Single" }}-elimination knockout</h2>
-            <p>Participant names appear after the preliminary stage and qualifier review.</p>
+          <div class="border-b border-ink/20 bg-modest/45 p-6">
+            <p class="mb-3 text-xs font-extrabold tracking-[.13em] text-blue">FUTURE STAGE</p>
+            <h2 class="font-display text-3xl font-semibold">{{ knockoutStage.format === "double" ? "Double" : "Single" }}-elimination knockout</h2>
+            <p class="mt-2 text-sm text-ink/65">Participant names appear after the preliminary stage and qualifier review.</p>
           </div>
-          <div class="placeholder-bracket">
-            <article v-for="(slot, index) in qualifierPlaceholders" :key="`slot-${index}`">
-              <small>SEED {{ String(index + 1).padStart(2, "0") }}</small>
+          <div class="grid gap-3 p-6 sm:grid-cols-2 lg:grid-cols-4">
+            <article v-for="(slot, index) in qualifierPlaceholders" :key="`slot-${index}`" class="grid gap-1 border border-dashed border-ink/25 p-4 opacity-60">
+              <small class="text-[.65rem] font-bold tracking-[.12em] text-blue">SEED {{ String(index + 1).padStart(2, "0") }}</small>
               <strong>{{ slot.label }}</strong>
             </article>
           </div>
@@ -269,7 +270,7 @@ const {
 
         <div
           v-if="selectedStageId !== 'qualifiers' && !(selectedStageId === 'knockout' && knockoutStage?.status === 'preview')"
-          class="bracket-guidance"
+          class="my-5 flex flex-wrap items-center justify-between gap-4 text-xs text-ink/65"
         >
           <span>
             {{
@@ -282,9 +283,9 @@ const {
           </span>
           <label
             v-if="displayedFormat === 'round-robin' || displayedFormat === 'swiss' || displayedFormat === 'groups'"
-            class="round-visibility-toggle"
+            class="flex items-center gap-2 font-semibold text-ink"
           >
-            <input v-model="showUpcomingRounds" type="checkbox">
+            <input v-model="showUpcomingRounds" class="size-4 accent-blue" type="checkbox">
             <span>Show upcoming rounds</span>
           </label>
           <span>Scroll sideways to see later rounds →</span>
@@ -326,26 +327,26 @@ const {
           @save="saveScore(editingMatch)"
         />
 
-        <footer class="tournament-footer">
+        <footer class="mt-10 flex flex-wrap items-center justify-between gap-5 border-t border-ink/20 py-8 text-sm">
           <span v-if="isLocal">Stored in this browser · no expiry</span>
           <span v-else>Hosted until {{ new Date(tournament.expiresAt).toLocaleDateString() }}</span>
-          <div v-if="isManager && !isLocal" class="retention-controls">
-            <label>
+          <div v-if="isManager && !isLocal" class="flex flex-wrap items-center gap-3">
+            <label class="flex items-center gap-2">
               Keep for
-              <select v-model.number="retentionChoice">
+              <select v-model.number="retentionChoice" class="rounded-brand border border-ink/25 bg-paper px-3 py-2">
                 <option :value="30">1 month</option>
                 <option :value="365">1 year</option>
               </select>
             </label>
-            <button class="outline-button" @click="updateRetention">Update</button>
-            <button class="danger-link" @click="deleteTournament">Delete tournament</button>
+            <AppButton @click="updateRetention">Update</AppButton>
+            <AppButton variant="danger" @click="deleteTournament">Delete tournament</AppButton>
           </div>
-          <div v-else-if="isManager && isLocal" class="retention-controls">
-            <button class="outline-button" @click="exportTournament">Export backup</button>
-            <button class="outline-button" @click="duplicateTournament">Duplicate</button>
-            <button class="danger-link" @click="deleteTournament">Delete local tournament</button>
+          <div v-else-if="isManager && isLocal" class="flex flex-wrap items-center gap-3">
+            <AppButton @click="exportTournament">Export backup</AppButton>
+            <AppButton @click="duplicateTournament">Duplicate</AppButton>
+            <AppButton variant="danger" @click="deleteTournament">Delete local tournament</AppButton>
           </div>
-          <button v-else class="primary-button" @click="navigate('/create')">Create your own bracket</button>
+          <AppButton v-else variant="primary" @click="navigate('/create')">Create your own bracket</AppButton>
         </footer>
       </template>
     </main>

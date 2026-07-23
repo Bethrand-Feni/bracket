@@ -13,7 +13,9 @@ export const hostedTournamentClient: HostedTournamentClient = {
     if (options.body) headers.set("content-type", "application/json");
     if (organizerToken) headers.set("authorization", `Bearer ${organizerToken}`);
     const response = await fetch(url, { ...options, headers });
-    const data = response.status === 204 ? null : await response.json().catch(() => null);
+    const data = response.status === 204
+      ? null
+      : await response.json().catch(() => null) as { error?: string; code?: string } | null;
     if (!response.ok) {
       const error = new Error(data?.error ?? "Something went wrong.") as ApiError;
       error.status = response.status;

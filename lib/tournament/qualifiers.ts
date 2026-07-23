@@ -1,5 +1,5 @@
 import { nextPowerOfTwo } from "./elimination";
-import type { Standing, TournamentSnapshot } from "./types";
+import type { PreliminaryStage, Standing, TournamentSnapshot } from "./types";
 
 function standingsTie(a: Standing, b: Standing) {
   return (

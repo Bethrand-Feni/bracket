@@ -16,26 +16,25 @@ watch(root, (value) => emit("rootChanged", value), { immediate: true });
 <template>
 
         <section
-          v-if="selectedStageId !== 'qualifiers' && !(selectedStageId === 'knockout' && knockoutStage?.status === 'preview')"
           ref="root"
-          class="bracket-layout"
+          class="bracket-layout grid gap-0 border border-ink/20"
           :class="{ 'no-standings': !hasStandings, 'double-layout': displayedFormat === 'double', 'groups-layout': displayedFormat === 'groups' }"
         >
-          <div class="bracket-board">
-            <div v-if="groupBoards.length" class="groups-board">
-              <section v-for="group in groupBoards" :key="group.id" class="group-board">
-                <header>
-                  <div><p>QUALIFICATION POOL</p><h2>{{ group.label }}</h2></div>
-                  <span>{{ group.participantIds.length }} players</span>
+          <div class="bracket-board min-w-0 overflow-x-auto">
+            <div v-if="groupBoards.length" class="grid gap-8 p-5">
+              <section v-for="group in groupBoards" :key="group.id" class="border border-ink/20">
+                <header class="flex items-end justify-between gap-5 border-b border-ink/20 bg-modest/40 p-5">
+                  <div><p class="mb-2 text-[.6rem] font-extrabold tracking-[.12em] text-blue">QUALIFICATION POOL</p><h2 class="font-display text-3xl font-semibold">{{ group.label }}</h2></div>
+                  <span class="text-xs text-ink/60">{{ group.participantIds.length }} players</span>
                 </header>
-                <div class="group-rounds">
+                <div class="flex min-w-max gap-14 overflow-x-auto p-5">
                   <div
                     v-for="(round, roundIndex) in group.rounds"
                     :key="`${group.id}-${round.label}`"
-                    class="group-round"
-                    :class="{ 'round-locked': !showUpcomingRounds && roundIndex > activeRoundIndex }"
+                    class="group-round grid w-64 shrink-0 content-start gap-5"
+                    :class="!showUpcomingRounds && roundIndex > activeRoundIndex ? 'round-locked opacity-30 grayscale' : ''"
                   >
-                    <h3>{{ round.label }}</h3>
+                    <h3 class="text-xs font-bold uppercase tracking-[.1em] text-brown">{{ round.label }}</h3>
                     <MatchCard
                       v-for="match in round.matches"
                       :key="match.id"
@@ -48,9 +47,9 @@ watch(root, (value) => emit("rootChanged", value), { immediate: true });
                     />
                   </div>
                 </div>
-                <div class="group-table">
-                  <div class="standing-head"><span>#</span><span>Player</span><span>Pts</span></div>
-                  <div v-for="(standing, index) in group.standings" :key="standing.participantId" class="standing-row">
+                <div class="border-t border-ink/20 p-5">
+                  <div class="grid grid-cols-[3rem_1fr_3rem] border-b border-ink/20 py-2 text-xs font-bold uppercase tracking-[.08em] text-blue"><span>#</span><span>Player</span><span>Pts</span></div>
+                  <div v-for="(standing, index) in group.standings" :key="standing.participantId" class="grid grid-cols-[3rem_1fr_3rem] border-b border-ink/10 py-3 text-sm">
                     <span>{{ String(index + 1).padStart(2, "0") }}</span>
                     <b>{{ participantName(tournament, standing.participantId) }}</b>
                     <span>{{ standing.points }}</span>
@@ -87,7 +86,7 @@ watch(root, (value) => emit("rootChanged", value), { immediate: true });
                 :key="column.column"
                 class="bracket-column unified-double-column"
               >
-                <h2>{{ column.label }}</h2>
+                <h2 class="text-xs font-bold uppercase tracking-[.1em] text-brown">{{ column.label }}</h2>
                 <div
                   v-for="tier in [
                     { id: 'winners', matches: column.winners },
@@ -119,14 +118,14 @@ watch(root, (value) => emit("rootChanged", value), { immediate: true });
                 v-for="section in bracketSections"
                 :key="section.id"
                 class="bracket-section"
-                :class="`section-${section.id}`"
+                :class="[`section-${section.id}`, section.id === 'losers' ? 'bg-modest/25' : '']"
               >
-              <header v-if="section.title" class="bracket-section-heading">
+              <header v-if="section.title" class="flex flex-wrap items-end justify-between gap-5 border-b border-ink/20 bg-modest/40 p-6">
                 <div>
-                  <p>{{ section.id === "losers" ? "SECOND CHANCE" : section.id === "winners" ? "UNBEATEN PATH" : "TITLE MATCH" }}</p>
-                  <h2>{{ section.title }}</h2>
+                  <p class="mb-2 text-[.6rem] font-extrabold tracking-[.12em] text-blue">{{ section.id === "losers" ? "SECOND CHANCE" : section.id === "winners" ? "UNBEATEN PATH" : "TITLE MATCH" }}</p>
+                  <h2 class="font-display text-3xl font-semibold">{{ section.title }}</h2>
                 </div>
-                <span>{{ section.note }}</span>
+                <span class="text-xs text-brown">{{ section.note }}</span>
               </header>
               <div
                 class="bracket-canvas"
@@ -152,9 +151,9 @@ watch(root, (value) => emit("rootChanged", value), { immediate: true });
                   v-for="(group, groupIndex) in section.groups"
                   :key="group.label"
                   class="bracket-column"
-                  :class="{ 'round-locked': isGroupLocked(section.id, groupIndex) }"
+                  :class="isGroupLocked(section.id, groupIndex) ? 'round-locked opacity-30 grayscale' : ''"
                 >
-                  <h2>{{ group.label }}</h2>
+                  <h2 class="text-xs font-bold uppercase tracking-[.1em] text-brown">{{ group.label }}</h2>
                   <div class="match-stack">
                     <MatchCard
                       v-for="match in group.matches"
@@ -172,20 +171,21 @@ watch(root, (value) => emit("rootChanged", value), { immediate: true });
               </section>
             </template>
           </div>
-          <aside v-if="displayedStandings.length && displayedFormat !== 'groups'" class="standings-panel">
-            <h2>Standings</h2>
-            <div class="standing-head"><span>#</span><span>Player</span><span>Pts</span></div>
-            <div v-for="(standing, index) in displayedStandings" :key="standing.participantId" class="standing-row">
+          <aside v-if="displayedStandings.length && displayedFormat !== 'groups'" class="border-t border-ink/20 p-5 lg:border-l lg:border-t-0">
+            <h2 class="mb-5 font-display text-2xl font-semibold">Standings</h2>
+            <div class="grid grid-cols-[3rem_1fr_3rem] border-b border-ink/20 py-2 text-xs font-bold uppercase tracking-[.08em] text-blue"><span>#</span><span>Player</span><span>Pts</span></div>
+            <div v-for="(standing, index) in displayedStandings" :key="standing.participantId" class="grid grid-cols-[3rem_1fr_3rem] border-b border-ink/10 py-3 text-sm">
               <span>{{ String(index + 1).padStart(2, "0") }}</span>
               <b>{{ participantName(tournament, standing.participantId) }}</b>
               <span>{{ standing.points }}</span>
             </div>
             <button
               v-if="canEditDisplayedMatches && displayedFormat === 'swiss'"
-              class="outline-button wide swiss-button"
+              class="mt-5 w-full rounded-brand border border-blue px-4 py-2.5 font-display font-semibold text-blue hover:bg-blue hover:text-paper"
               @click="emit('generateSwissRound')"
             >Generate next round</button>
           </aside>
         </section>
 </template>
 
+<style src="./bracket.css"></style>
